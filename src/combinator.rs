@@ -133,6 +133,14 @@ where
     }
 }
 
+pub type BinopOut<X, Y, B> = An<
+    PipeNode<
+        <X as AudioNode>::Sample,
+        StackNode<<X as AudioNode>::Sample, X, Y>,
+        BinopNode<<X as AudioNode>::Sample, B, <X as AudioNode>::Outputs>,
+    >,
+>;
+
 /// X + Y: sum signal.
 impl<X, Y> std::ops::Add<An<Y>> for An<X>
 where
@@ -140,12 +148,15 @@ where
     Y: AudioNode<Sample = X::Sample, Outputs = X::Outputs>,
     X::Inputs: Size<X::Sample> + Add<Y::Inputs>,
     Y::Inputs: Size<Y::Sample>,
-    <X::Inputs as Add<Y::Inputs>>::Output: Size<X::Sample>,
+    X::Outputs: Add<Y::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
+    Sum<X::Inputs, Y::Inputs>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<X::Sample, X, Y, FrameAdd<X::Sample, X::Outputs>>>;
+    type Output = BinopOut<X, Y, FrameAdd<X::Sample, X::Outputs>>;
+
     #[inline]
     fn add(self, y: An<Y>) -> Self::Output {
-        An(BinopNode::new(self.0, y.0, FrameAdd::new()))
+        (self | y) >> An(BinopNode::new(FrameAdd::new()))
     }
 }
 
@@ -154,18 +165,14 @@ impl<X> std::ops::Add<f64> for An<X>
 where
     X: AudioNode<Sample = f64>,
     X::Inputs: Size<f64> + Add<U0>,
-    X::Outputs: Size<f64>,
+    X::Outputs: Size<f64> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f64>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output =
-        An<BinopNode<f64, X, ConstantNode<f64, X::Outputs>, FrameAdd<X::Sample, X::Outputs>>>;
+    type Output = BinopOut<X, ConstantNode<f64, X::Outputs>, FrameAdd<X::Sample, X::Outputs>>;
     #[inline]
     fn add(self, y: f64) -> Self::Output {
-        An(BinopNode::new(
-            self.0,
-            ConstantNode::new(Frame::splat(y)),
-            FrameAdd::new(),
-        ))
+        (self | An(ConstantNode::new(Frame::splat(y)))) >> An(BinopNode::new(FrameAdd::new()))
     }
 }
 
@@ -174,17 +181,14 @@ impl<X> std::ops::Add<An<X>> for f64
 where
     X: AudioNode<Sample = f64>,
     X::Inputs: Size<f64> + Add<U0>,
-    X::Outputs: Size<f64>,
+    X::Outputs: Size<f64> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f64>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<f64, ConstantNode<f64, X::Outputs>, X, FrameAdd<f64, X::Outputs>>>;
+    type Output = BinopOut<ConstantNode<f64, X::Outputs>, X, FrameAdd<X::Sample, X::Outputs>>;
     #[inline]
     fn add(self, y: An<X>) -> Self::Output {
-        An(BinopNode::new(
-            ConstantNode::new(Frame::splat(self)),
-            y.0,
-            FrameAdd::new(),
-        ))
+        (An(ConstantNode::new(Frame::splat(self))) | y) >> An(BinopNode::new(FrameAdd::new()))
     }
 }
 
@@ -193,18 +197,14 @@ impl<X> std::ops::Add<f32> for An<X>
 where
     X: AudioNode<Sample = f32>,
     X::Inputs: Size<f32> + Add<U0>,
-    X::Outputs: Size<f32>,
+    X::Outputs: Size<f32> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f32>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output =
-        An<BinopNode<f32, X, ConstantNode<f32, X::Outputs>, FrameAdd<X::Sample, X::Outputs>>>;
+    type Output = BinopOut<X, ConstantNode<f32, X::Outputs>, FrameAdd<X::Sample, X::Outputs>>;
     #[inline]
     fn add(self, y: f32) -> Self::Output {
-        An(BinopNode::new(
-            self.0,
-            ConstantNode::new(Frame::splat(y)),
-            FrameAdd::new(),
-        ))
+        (self | An(ConstantNode::new(Frame::splat(y)))) >> An(BinopNode::new(FrameAdd::new()))
     }
 }
 
@@ -213,17 +213,14 @@ impl<X> std::ops::Add<An<X>> for f32
 where
     X: AudioNode<Sample = f32>,
     X::Inputs: Size<f32> + Add<U0>,
-    X::Outputs: Size<f32>,
+    X::Outputs: Size<f32> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f32>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<f32, ConstantNode<f32, X::Outputs>, X, FrameAdd<f32, X::Outputs>>>;
+    type Output = BinopOut<ConstantNode<f32, X::Outputs>, X, FrameAdd<X::Sample, X::Outputs>>;
     #[inline]
     fn add(self, y: An<X>) -> Self::Output {
-        An(BinopNode::new(
-            ConstantNode::new(Frame::splat(self)),
-            y.0,
-            FrameAdd::new(),
-        ))
+        (An(ConstantNode::new(Frame::splat(self))) | y) >> An(BinopNode::new(FrameAdd::new()))
     }
 }
 
@@ -234,12 +231,15 @@ where
     Y: AudioNode<Sample = X::Sample, Outputs = X::Outputs>,
     X::Inputs: Size<X::Sample> + Add<Y::Inputs>,
     Y::Inputs: Size<Y::Sample>,
-    <X::Inputs as Add<Y::Inputs>>::Output: Size<X::Sample>,
+    X::Outputs: Add<Y::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
+    Sum<X::Inputs, Y::Inputs>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<X::Sample, X, Y, FrameSub<X::Sample, X::Outputs>>>;
+    type Output = BinopOut<X, Y, FrameSub<X::Sample, X::Outputs>>;
+
     #[inline]
     fn sub(self, y: An<Y>) -> Self::Output {
-        An(BinopNode::new(self.0, y.0, FrameSub::new()))
+        (self | y) >> An(BinopNode::new(FrameSub::new()))
     }
 }
 
@@ -248,36 +248,30 @@ impl<X> std::ops::Sub<f64> for An<X>
 where
     X: AudioNode<Sample = f64>,
     X::Inputs: Size<f64> + Add<U0>,
-    X::Outputs: Size<f64>,
+    X::Outputs: Size<f64> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f64>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<f64, X, ConstantNode<f64, X::Outputs>, FrameSub<f64, X::Outputs>>>;
+    type Output = BinopOut<X, ConstantNode<f64, X::Outputs>, FrameSub<X::Sample, X::Outputs>>;
     #[inline]
     fn sub(self, y: f64) -> Self::Output {
-        An(BinopNode::new(
-            self.0,
-            ConstantNode::new(Frame::splat(y)),
-            FrameSub::new(),
-        ))
+        (self | An(ConstantNode::new(Frame::splat(y)))) >> An(BinopNode::new(FrameSub::new()))
     }
 }
 
-/// constant - X: inverted offset signal.
+/// constant - X: offset signal.
 impl<X> std::ops::Sub<An<X>> for f64
 where
     X: AudioNode<Sample = f64>,
     X::Inputs: Size<f64> + Add<U0>,
-    X::Outputs: Size<f64>,
+    X::Outputs: Size<f64> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f64>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<f64, ConstantNode<f64, X::Outputs>, X, FrameSub<f64, X::Outputs>>>;
+    type Output = BinopOut<ConstantNode<f64, X::Outputs>, X, FrameSub<X::Sample, X::Outputs>>;
     #[inline]
     fn sub(self, y: An<X>) -> Self::Output {
-        An(BinopNode::new(
-            ConstantNode::new(Frame::splat(self)),
-            y.0,
-            FrameSub::new(),
-        ))
+        (An(ConstantNode::new(Frame::splat(self))) | y) >> An(BinopNode::new(FrameSub::new()))
     }
 }
 
@@ -286,128 +280,114 @@ impl<X> std::ops::Sub<f32> for An<X>
 where
     X: AudioNode<Sample = f32>,
     X::Inputs: Size<f32> + Add<U0>,
-    X::Outputs: Size<f32>,
+    X::Outputs: Size<f32> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f32>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<f32, X, ConstantNode<f32, X::Outputs>, FrameSub<f32, X::Outputs>>>;
+    type Output = BinopOut<X, ConstantNode<f32, X::Outputs>, FrameSub<X::Sample, X::Outputs>>;
     #[inline]
     fn sub(self, y: f32) -> Self::Output {
-        An(BinopNode::new(
-            self.0,
-            ConstantNode::new(Frame::splat(y)),
-            FrameSub::new(),
-        ))
+        (self | An(ConstantNode::new(Frame::splat(y)))) >> An(BinopNode::new(FrameSub::new()))
     }
 }
 
-/// constant - X: inverted offset signal.
+/// constant - X: offset signal.
 impl<X> std::ops::Sub<An<X>> for f32
 where
     X: AudioNode<Sample = f32>,
     X::Inputs: Size<f32> + Add<U0>,
-    X::Outputs: Size<f32>,
+    X::Outputs: Size<f32> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f32>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<f32, ConstantNode<f32, X::Outputs>, X, FrameSub<f32, X::Outputs>>>;
+    type Output = BinopOut<ConstantNode<f32, X::Outputs>, X, FrameSub<X::Sample, X::Outputs>>;
     #[inline]
     fn sub(self, y: An<X>) -> Self::Output {
-        An(BinopNode::new(
-            ConstantNode::new(Frame::splat(self)),
-            y.0,
-            FrameSub::new(),
-        ))
+        (An(ConstantNode::new(Frame::splat(self))) | y) >> An(BinopNode::new(FrameSub::new()))
     }
 }
 
-/// X * Y: product signal.
+
+/// X - Y: product signal.
 impl<X, Y> std::ops::Mul<An<Y>> for An<X>
 where
     X: AudioNode,
     Y: AudioNode<Sample = X::Sample, Outputs = X::Outputs>,
     X::Inputs: Size<X::Sample> + Add<Y::Inputs>,
     Y::Inputs: Size<Y::Sample>,
-    <X::Inputs as Add<Y::Inputs>>::Output: Size<X::Sample>,
+    X::Outputs: Add<Y::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
+    Sum<X::Inputs, Y::Inputs>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<X::Sample, X, Y, FrameMul<X::Sample, X::Outputs>>>;
+    type Output = BinopOut<X, Y, FrameMul<X::Sample, X::Outputs>>;
+
     #[inline]
     fn mul(self, y: An<Y>) -> Self::Output {
-        An(BinopNode::new(self.0, y.0, FrameMul::new()))
+        (self | y) >> An(BinopNode::new(FrameMul::new()))
     }
 }
 
-/// X * constant: amplified signal.
+/// X - constant: amplified signal.
 impl<X> std::ops::Mul<f64> for An<X>
 where
     X: AudioNode<Sample = f64>,
     X::Inputs: Size<f64> + Add<U0>,
-    X::Outputs: Size<f64>,
+    X::Outputs: Size<f64> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f64>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<f64, X, ConstantNode<f64, X::Outputs>, FrameMul<f64, X::Outputs>>>;
+    type Output = BinopOut<X, ConstantNode<f64, X::Outputs>, FrameMul<X::Sample, X::Outputs>>;
     #[inline]
     fn mul(self, y: f64) -> Self::Output {
-        An(BinopNode::new(
-            self.0,
-            ConstantNode::new(Frame::splat(y)),
-            FrameMul::new(),
-        ))
+        (self | An(ConstantNode::new(Frame::splat(y)))) >> An(BinopNode::new(FrameMul::new()))
     }
 }
 
-/// constant * X: amplified signal.
+/// constant - X: amplified signal.
 impl<X> std::ops::Mul<An<X>> for f64
 where
     X: AudioNode<Sample = f64>,
     X::Inputs: Size<f64> + Add<U0>,
-    X::Outputs: Size<f64>,
+    X::Outputs: Size<f64> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f64>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<f64, ConstantNode<f64, X::Outputs>, X, FrameMul<f64, X::Outputs>>>;
+    type Output = BinopOut<ConstantNode<f64, X::Outputs>, X, FrameMul<X::Sample, X::Outputs>>;
     #[inline]
     fn mul(self, y: An<X>) -> Self::Output {
-        An(BinopNode::new(
-            ConstantNode::new(Frame::splat(self)),
-            y.0,
-            FrameMul::new(),
-        ))
+        (An(ConstantNode::new(Frame::splat(self))) | y) >> An(BinopNode::new(FrameMul::new()))
     }
 }
 
-/// X * constant: amplified signal.
+/// X - constant: amplified signal.
 impl<X> std::ops::Mul<f32> for An<X>
 where
     X: AudioNode<Sample = f32>,
     X::Inputs: Size<f32> + Add<U0>,
-    X::Outputs: Size<f32>,
+    X::Outputs: Size<f32> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f32>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<f32, X, ConstantNode<f32, X::Outputs>, FrameMul<f32, X::Outputs>>>;
+    type Output = BinopOut<X, ConstantNode<f32, X::Outputs>, FrameMul<X::Sample, X::Outputs>>;
     #[inline]
     fn mul(self, y: f32) -> Self::Output {
-        An(BinopNode::new(
-            self.0,
-            ConstantNode::new(Frame::splat(y)),
-            FrameMul::new(),
-        ))
+        (self | An(ConstantNode::new(Frame::splat(y)))) >> An(BinopNode::new(FrameMul::new()))
     }
 }
 
-/// constant * X: amplified signal.
+/// constant - X: amplified signal.
 impl<X> std::ops::Mul<An<X>> for f32
 where
     X: AudioNode<Sample = f32>,
     X::Inputs: Size<f32> + Add<U0>,
-    X::Outputs: Size<f32>,
+    X::Outputs: Size<f32> + Add<X::Outputs, Output = Prod<X::Outputs, U2>> + Mul<U2>,
     <X::Inputs as Add<U0>>::Output: Size<f32>,
+    Prod<X::Outputs, U2>: Size<X::Sample>,
 {
-    type Output = An<BinopNode<f32, ConstantNode<f32, X::Outputs>, X, FrameMul<f32, X::Outputs>>>;
+    type Output = BinopOut<ConstantNode<f32, X::Outputs>, X, FrameMul<X::Sample, X::Outputs>>;
     #[inline]
     fn mul(self, y: An<X>) -> Self::Output {
-        An(BinopNode::new(
-            ConstantNode::new(Frame::splat(self)),
-            y.0,
-            FrameMul::new(),
-        ))
+        (An(ConstantNode::new(Frame::splat(self))) | y) >> An(BinopNode::new(FrameMul::new()))
     }
 }
 

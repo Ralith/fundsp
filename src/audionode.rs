@@ -315,76 +315,49 @@ impl<T: Float, N: Size<T>> FrameUnop<T, N> for FrameNeg<T, N> {
     }
 }
 
-/// BinopNode combines outputs of two components, channel-wise, with a binary operation.
-/// The components must have the same number of outputs.
+/// BinopNode reduces a set of channels blockwise with a binary operation
 #[derive(Clone)]
-pub struct BinopNode<T, X, Y, B> {
-    _marker: PhantomData<T>,
-    x: X,
-    y: Y,
+pub struct BinopNode<T, B, N> {
+    _marker: PhantomData<(T, N)>,
     b: B,
 }
 
-impl<T, X, Y, B> BinopNode<T, X, Y, B>
+impl<T, B, N> BinopNode<T, B, N>
 where
     T: Float,
-    X: AudioNode<Sample = T>,
-    Y: AudioNode<Sample = T, Outputs = X::Outputs>,
-    B: FrameBinop<T, X::Outputs>,
-    X::Inputs: Size<T> + Add<Y::Inputs>,
-    X::Outputs: Size<T>,
-    Y::Inputs: Size<T>,
-    <X::Inputs as Add<Y::Inputs>>::Output: Size<T>,
+    B: FrameBinop<T, N>,
+    N: Size<T>,
 {
-    pub fn new(x: X, y: Y, b: B) -> Self {
-        let mut node = BinopNode {
+    pub fn new(b: B) -> Self {
+        let node = BinopNode {
             _marker: PhantomData,
-            x,
-            y,
             b,
         };
-        node.ping(0x0001);
         node
     }
 }
 
-impl<T, X, Y, B> AudioNode for BinopNode<T, X, Y, B>
+impl<T, B, N> AudioNode for BinopNode<T, B, N>
 where
     T: Float,
-    X: AudioNode<Sample = T>,
-    Y: AudioNode<Sample = T, Outputs = X::Outputs>,
-    B: FrameBinop<T, X::Outputs>,
-    X::Outputs: Size<T>,
-    X::Inputs: Size<T> + Add<Y::Inputs>,
-    Y::Inputs: Size<T>,
-    <X::Inputs as Add<Y::Inputs>>::Output: Size<T>,
+    N: Size<T> + Mul<U2>,
+    Prod<N, U2>: Size<T>,
+    B: FrameBinop<T, N>,
 {
     type Sample = T;
-    type Inputs = Sum<X::Inputs, Y::Inputs>;
-    type Outputs = X::Outputs;
+    type Inputs = Prod<N, U2>;
+    type Outputs = N;
 
-    fn reset(&mut self, sample_rate: Option<f64>) {
-        self.x.reset(sample_rate);
-        self.y.reset(sample_rate);
-    }
     #[inline]
     fn tick(
         &mut self,
         input: &Frame<Self::Sample, Self::Inputs>,
     ) -> Frame<Self::Sample, Self::Outputs> {
-        let input_x = &input[0..X::Inputs::USIZE];
-        let input_y = &input[Self::Inputs::USIZE - Y::Inputs::USIZE..Self::Inputs::USIZE];
-        let x = self.x.tick(input_x.into());
-        let y = self.y.tick(input_y.into());
-        B::binop(&x, &y)
-    }
-    fn latency(&self) -> Option<f64> {
-        parallel_latency(self.x.latency(), self.y.latency())
+        let (x, y) = input.split_at(N::USIZE);
+        B::binop(x.into(), y.into())
     }
     #[inline]
     fn ping(&mut self, hash: u32) -> u32 {
-        let hash = self.x.ping(hash);
-        let hash = self.y.ping(hash);
         hashw(0x004 ^ hash)
     }
 }

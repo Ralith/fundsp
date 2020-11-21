@@ -1,3 +1,6 @@
+use std::ops::Add;
+use numeric_array::typenum::*;
+
 pub use super::audionode::*;
 pub use super::combinator::*;
 pub use super::math::*;
@@ -85,10 +88,12 @@ pub fn sine_hz(f: f64) -> An<impl AudioNode<Sample = f64, Inputs = U0, Outputs =
 #[inline]
 pub fn add<X: ConstantFrame<Sample = f64>>(
     x: X,
-) -> An<BinopNode<f64, PassNode<f64, X::Size>, ConstantNode<f64, X::Size>, FrameAdd<f64, X::Size>>>
+) -> BinopOut<PassNode<f64, X::Size>, ConstantNode<f64, X::Size>, FrameAdd<f64, X::Size>>
 where
-    X::Size: Size<f64> + Add<U0>,
-    <X::Size as Add<U0>>::Output: Size<f64>,
+    X::Size: Size<f64> + Add<U0> + Add<X::Size, Output = Prod<X::Size, U2>> + Mul<U2>,
+    Sum<X::Size, U0>: Size<f64>,
+    Sum<X::Size, X::Size>: Size<f64>,
+    Prod<X::Size, U2>: Size<f64>,
 {
     An(PassNode::<f64, X::Size>::new()) + dc(x)
 }
@@ -97,10 +102,12 @@ where
 #[inline]
 pub fn sub<X: ConstantFrame<Sample = f64>>(
     x: X,
-) -> An<BinopNode<f64, PassNode<f64, X::Size>, ConstantNode<f64, X::Size>, FrameSub<f64, X::Size>>>
+) -> BinopOut<PassNode<f64, X::Size>, ConstantNode<f64, X::Size>, FrameSub<f64, X::Size>>
 where
-    X::Size: Size<f64> + Add<U0>,
-    <X::Size as Add<U0>>::Output: Size<f64>,
+    X::Size: Size<f64> + Add<U0> + Add<X::Size, Output = Prod<X::Size, U2>> + Mul<U2>,
+    Sum<X::Size, U0>: Size<f64>,
+    Sum<X::Size, X::Size>: Size<f64>,
+    Prod<X::Size, U2>: Size<f64>,
 {
     An(PassNode::<f64, X::Size>::new()) - dc(x)
 }
@@ -109,10 +116,12 @@ where
 #[inline]
 pub fn mul<X: ConstantFrame<Sample = f64>>(
     x: X,
-) -> An<BinopNode<f64, PassNode<f64, X::Size>, ConstantNode<f64, X::Size>, FrameMul<f64, X::Size>>>
+) -> BinopOut<PassNode<f64, X::Size>, ConstantNode<f64, X::Size>, FrameMul<f64, X::Size>>
 where
-    X::Size: Size<f64> + Add<U0>,
-    <X::Size as Add<U0>>::Output: Size<f64>,
+    X::Size: Size<f64> + Add<U0> + Add<X::Size, Output = Prod<X::Size, U2>> + Mul<U2>,
+    Sum<X::Size, U0>: Size<f64>,
+    Sum<X::Size, X::Size>: Size<f64>,
+    Prod<X::Size, U2>: Size<f64>,
 {
     An(PassNode::<f64, X::Size>::new()) * dc(x)
 }
